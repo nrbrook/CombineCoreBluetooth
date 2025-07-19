@@ -25,6 +25,7 @@ extension CentralManager {
       _supportsFeatures: {
 #if os(macOS) && !targetEnvironment(macCatalyst)
         // will never be called on native macOS
+        false
 #else
         CBCentralManager.supports($0)
 #endif
