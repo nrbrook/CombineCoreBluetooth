@@ -1,7 +1,7 @@
 import Foundation
-import CoreBluetooth
+@preconcurrency import CoreBluetooth
 
-public struct ATTRequest: Hashable, Identifiable {
+public struct ATTRequest: Hashable, Identifiable, Sendable {
   public let id = UUID()
   let rawValue: CBATTRequest?
 

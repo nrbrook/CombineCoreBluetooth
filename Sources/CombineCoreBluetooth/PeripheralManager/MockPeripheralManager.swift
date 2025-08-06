@@ -6,7 +6,7 @@
 //
 
 import Foundation
-import CoreBluetooth
+@preconcurrency import CoreBluetooth
 
 
 /// A delegate protocol for the `MockPeripheralManager`

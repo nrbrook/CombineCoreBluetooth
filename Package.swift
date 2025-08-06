@@ -1,21 +1,13 @@
-// swift-tools-version:5.3
+// swift-tools-version:5.9
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
 import PackageDescription
-
-#if swift(>=5.6)
-let dependencies: [Package.Dependency] = [
-  .package(url: "https://github.com/apple/swift-docc-plugin", from: "1.0.0"),
-]
-#else
-let dependencies: [Package.Dependency] = []
-#endif
 
 let package = Package(
   name: "CombineCoreBluetooth",
   platforms: [
     .iOS(.v13),
-    .macOS(.v10_15),
+    .macOS(.v11),
     .tvOS(.v13),
     .watchOS(.v6),
   ],
@@ -25,15 +17,23 @@ let package = Package(
       targets: ["CombineCoreBluetooth"]
     ),
   ],
-  dependencies: dependencies,
+  dependencies: [
+    .package(url: "https://github.com/pointfreeco/swift-concurrency-extras", "0.1.0"..<"2.0.0"),
+  ],
   targets: [
     .target(
       name: "CombineCoreBluetooth",
-      dependencies: []
+      dependencies: [
+      ],
+      swiftSettings: [
+      ]
     ),
     .testTarget(
       name: "CombineCoreBluetoothTests",
-      dependencies: ["CombineCoreBluetooth"]
+      dependencies: [
+        "CombineCoreBluetooth",
+        .product(name: "ConcurrencyExtras", package: "swift-concurrency-extras"),
+      ]
     ),
   ]
 )

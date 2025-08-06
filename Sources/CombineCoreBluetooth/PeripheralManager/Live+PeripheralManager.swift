@@ -1,17 +1,18 @@
 import Foundation
+@preconcurrency import CoreBluetooth
 
 extension PeripheralManager {
   public static func live(_ options: ManagerCreationOptions? = nil) -> Self {
-    let delegate = Delegate()
-#if os(tvOS) || os(watchOS)
-    let peripheralManager = CBPeripheralManager()
-    peripheralManager.delegate = delegate
-#else
+    let delegate: Delegate = options?.restoreIdentifier != nil ? RestorableDelegate() : Delegate()
+#if os(macOS) || os(iOS)
     let peripheralManager = CBPeripheralManager(
       delegate: delegate,
-      queue: DispatchQueue(label: "com.combine-core-bluetooth.peripheral", target: .global()),
+      queue: DispatchQueue(label: "combine-core-bluetooth.peripheral-manager", target: .global()),
       options: options?.peripheralManagerDictionary
     )
+#else
+    let peripheralManager = CBPeripheralManager()
+    peripheralManager.delegate = delegate
 #endif
     
     return Self(
@@ -28,21 +29,21 @@ extension PeripheralManager {
       _startAdvertising: { advertisementData in
         peripheralManager.startAdvertising(advertisementData?.dictionary)
       },
-      _stopAdvertising: peripheralManager.stopAdvertising,
+      _stopAdvertising: { peripheralManager.stopAdvertising() },
       _setDesiredConnectionLatency: { (latency, central) in
         peripheralManager.setDesiredConnectionLatency(latency, for: central.rawValue!)
       },
-      _add: peripheralManager.add(_:),
-      _remove: peripheralManager.remove(_:),
-      _removeAllServices: peripheralManager.removeAllServices,
+      _add: { peripheralManager.add($0) },
+      _remove: { peripheralManager.remove($0) },
+      _removeAllServices: { peripheralManager.removeAllServices() },
       _respondToRequest: { (request, result) in
         peripheralManager.respond(to: request.rawValue!, withResult: result)
       },
       _updateValueForCharacteristic: { (data, characteristic, centrals) -> Bool in
         peripheralManager.updateValue(data, for: characteristic, onSubscribedCentrals: centrals?.compactMap(\.rawValue))
       },
-      _publishL2CAPChannel: peripheralManager.publishL2CAPChannel(withEncryption:),
-      _unpublishL2CAPChannel: peripheralManager.unpublishL2CAPChannel(_:),
+      _publishL2CAPChannel: { peripheralManager.publishL2CAPChannel(withEncryption: $0) },
+      _unpublishL2CAPChannel: { peripheralManager.unpublishL2CAPChannel($0) },
       
       didUpdateState: delegate.didUpdateState.eraseToAnyPublisher(),
       didStartAdvertising: delegate.didStartAdvertising.eraseToAnyPublisher(),
@@ -62,10 +63,6 @@ extension PeripheralManager {
 extension PeripheralManager.Delegate: CBPeripheralManagerDelegate {
   func peripheralManagerDidUpdateState(_ peripheral: CBPeripheralManager) {
     didUpdateState.send(peripheral.state)
-  }
-  
-  func peripheralManager(_ peripheral: CBPeripheralManager, willRestoreState dict: [String : Any]) {
-    willRestoreState.send(dict)
   }
   
   func peripheralManagerDidStartAdvertising(_ peripheral: CBPeripheralManager, error: Error?) {
@@ -106,5 +103,11 @@ extension PeripheralManager.Delegate: CBPeripheralManagerDelegate {
   
   func peripheralManager(_ peripheral: CBPeripheralManager, didOpen channel: CBL2CAPChannel?, error: Error?) {
     didOpenL2CAPChannel.send((channel.map(L2CAPChannel.init(channel:)), error))
+  }
+}
+
+extension PeripheralManager.RestorableDelegate {
+  func peripheralManager(_ peripheral: CBPeripheralManager, willRestoreState dict: [String : Any]) {
+    willRestoreState.send(dict)
   }
 }

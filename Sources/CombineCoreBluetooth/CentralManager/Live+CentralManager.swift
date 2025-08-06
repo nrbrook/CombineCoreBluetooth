@@ -1,24 +1,16 @@
 import Combine
-import CoreBluetooth
+@preconcurrency import CoreBluetooth
 import Foundation
 
 extension CentralManager {
   public static func live(_ options: ManagerCreationOptions? = nil) -> Self {
-    let delegate = Delegate()
+    let delegate: Delegate = options?.restoreIdentifier != nil ? RestorableDelegate() : Delegate()
     let centralManager = CBCentralManager(
       delegate: delegate,
-      queue: DispatchQueue(label: "com.combine-core-bluetooth.central", target: .global()),
+      queue: DispatchQueue(label: "combine-core-bluetooth.central-manager", target: .global()),
       options: options?.centralManagerDictionary
     )
-    
-    func supportsFeatures(_ feature: Feature) -> Bool {
-#if os(macOS) && !targetEnvironment(macCatalyst)
-        false
-#else
-        CBCentralManager.supports(feature)
-#endif
-    }
-    
+
     return Self.init(
       delegate: delegate,
       _state: { centralManager.state },
@@ -30,7 +22,14 @@ extension CentralManager {
         }
       },
       _isScanning: { centralManager.isScanning },
-      _supportsFeatures: supportsFeatures,
+      _supportsFeatures: {
+#if os(macOS) && !targetEnvironment(macCatalyst)
+        // will never be called on native macOS
+          false
+#else
+        CBCentralManager.supports($0)
+#endif
+      },
       _retrievePeripheralsWithIdentifiers: { (identifiers) -> [Peripheral] in
         centralManager.retrievePeripherals(withIdentifiers: identifiers).map(Peripheral.init(cbperipheral:))
       },
@@ -40,7 +39,7 @@ extension CentralManager {
       _scanForPeripheralsWithServices: { services, options in
         centralManager.scanForPeripherals(withServices: services, options: options?.dictionary)
       },
-      _stopScan: centralManager.stopScan,
+      _stopScan: { centralManager.stopScan() },
       _connectToPeripheral: { (peripheral, options) in
         centralManager.connect(peripheral.rawValue!, options: options?.dictionary)
       },
@@ -92,10 +91,6 @@ extension CentralManager.Delegate: CBCentralManagerDelegate {
     didUpdateState.send(central.state)
   }
   
-  func centralManager(_ central: CBCentralManager, willRestoreState dict: [String : Any]) {
-    willRestoreState.send(dict)
-  }
-  
   func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
     didConnectPeripheral.send(Peripheral(cbperipheral: peripheral))
   }
@@ -127,4 +122,10 @@ extension CentralManager.Delegate: CBCentralManagerDelegate {
     didUpdateACNSAuthorizationForPeripheral.send(Peripheral(cbperipheral: peripheral))
   }
 #endif
+}
+
+extension CentralManager.RestorableDelegate {
+  func centralManager(_ central: CBCentralManager, willRestoreState dict: [String : Any]) {
+    willRestoreState.send(dict)
+  }
 }

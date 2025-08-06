@@ -1,43 +1,44 @@
 import Foundation
-import CoreBluetooth
+@preconcurrency import CoreBluetooth
+@preconcurrency import Combine
 
 /// The `CombineCoreBluetooth` wrapper around `CBPeripheral`.
-public struct Peripheral {
+public struct Peripheral: Sendable {
   let rawValue: CBPeripheral?
   let delegate: Delegate?
 
-  var _name: () -> String?
-  var _identifier: () -> UUID
-  var _state: () -> CBPeripheralState
-  var _services: () -> [CBService]?
-  var _canSendWriteWithoutResponse: () -> Bool
+  public var _name: @Sendable () -> String?
+  public var _identifier: @Sendable () -> UUID
+  public var _state: @Sendable () -> CBPeripheralState
+  public var _services: @Sendable () -> [CBService]?
+  public var _canSendWriteWithoutResponse: @Sendable () -> Bool
 
-  var _ancsAuthorized: () -> Bool
+  public var _ancsAuthorized: @Sendable () -> Bool
 
-  var _readRSSI: () -> Void
-  var _discoverServices: (_ serviceUUIDs: [CBUUID]?) -> Void
-  var _discoverIncludedServices: (_ includedServiceUUIDs: [CBUUID]?, _ service: CBService) -> Void
-  var _discoverCharacteristics: (_ characteristicUUIDs: [CBUUID]?, _ service: CBService) -> Void
-  var _readValueForCharacteristic: (_ characteristic: CBCharacteristic) -> Void
-  var _maximumWriteValueLength: (_ type: CBCharacteristicWriteType) -> Int
-  var _writeValueForCharacteristic: (_ data: Data, _ characteristic: CBCharacteristic, _ type: CBCharacteristicWriteType) -> Void
-  var _setNotifyValue: (_ enabled: Bool, _ characteristic: CBCharacteristic) -> Void
-  var _discoverDescriptors: (_ characteristic: CBCharacteristic) -> Void
-  var _readValueForDescriptor: (_ descriptor: CBDescriptor) -> Void
-  var _writeValueForDescriptor: (_ data: Data, _ descriptor: CBDescriptor) -> Void
-  var _openL2CAPChannel: (_ PSM: CBL2CAPPSM) -> Void
+  public var _readRSSI: @Sendable () -> Void
+  public var _discoverServices: @Sendable (_ serviceUUIDs: [CBUUID]?) -> Void
+  public var _discoverIncludedServices: @Sendable (_ includedServiceUUIDs: [CBUUID]?, _ service: CBService) -> Void
+  public var _discoverCharacteristics: @Sendable (_ characteristicUUIDs: [CBUUID]?, _ service: CBService) -> Void
+  public var _readValueForCharacteristic: @Sendable (_ characteristic: CBCharacteristic) -> Void
+  public var _maximumWriteValueLength: @Sendable (_ type: CBCharacteristicWriteType) -> Int
+  public var _writeValueForCharacteristic: @Sendable (_ data: Data, _ characteristic: CBCharacteristic, _ type: CBCharacteristicWriteType) -> Void
+  public var _setNotifyValue: @Sendable (_ enabled: Bool, _ characteristic: CBCharacteristic) -> Void
+  public var _discoverDescriptors: @Sendable (_ characteristic: CBCharacteristic) -> Void
+  public var _readValueForDescriptor: @Sendable (_ descriptor: CBDescriptor) -> Void
+  public var _writeValueForDescriptor: @Sendable (_ data: Data, _ descriptor: CBDescriptor) -> Void
+  public var _openL2CAPChannel: @Sendable (_ PSM: CBL2CAPPSM) -> Void
 
-  var didReadRSSI:                             AnyPublisher<Result<Double, Error>, Never>
-  var didDiscoverServices:                     AnyPublisher<([CBService], Error?), Never>
-  var didDiscoverIncludedServices:             AnyPublisher<(CBService, Error?), Never>
-  var didDiscoverCharacteristics:              AnyPublisher<(CBService, Error?), Never>
-  var didUpdateValueForCharacteristic:         AnyPublisher<(CBCharacteristic, Error?), Never>
-  var didWriteValueForCharacteristic:          AnyPublisher<(CBCharacteristic, Error?), Never>
-  var didUpdateNotificationState:              AnyPublisher<(CBCharacteristic, Error?), Never>
-  var didDiscoverDescriptorsForCharacteristic: AnyPublisher<(CBCharacteristic, Error?), Never>
-  var didUpdateValueForDescriptor:             AnyPublisher<(CBDescriptor, Error?), Never>
-  var didWriteValueForDescriptor:              AnyPublisher<(CBDescriptor, Error?), Never>
-  var didOpenChannel:                          AnyPublisher<(L2CAPChannel?, Error?), Never>
+  public var didReadRSSI:                             AnyPublisher<Result<Double, Error>, Never>
+  public var didDiscoverServices:                     AnyPublisher<([CBService], Error?), Never>
+  public var didDiscoverIncludedServices:             AnyPublisher<(CBService, Error?), Never>
+  public var didDiscoverCharacteristics:              AnyPublisher<(CBService, Error?), Never>
+  public var didUpdateValueForCharacteristic:         AnyPublisher<(CBCharacteristic, Error?), Never>
+  public var didWriteValueForCharacteristic:          AnyPublisher<(CBCharacteristic, Error?), Never>
+  public var didUpdateNotificationState:              AnyPublisher<(CBCharacteristic, Error?), Never>
+  public var didDiscoverDescriptorsForCharacteristic: AnyPublisher<(CBCharacteristic, Error?), Never>
+  public var didUpdateValueForDescriptor:             AnyPublisher<(CBDescriptor, Error?), Never>
+  public var didWriteValueForDescriptor:              AnyPublisher<(CBDescriptor, Error?), Never>
+  public var didOpenChannel:                          AnyPublisher<(L2CAPChannel?, Error?), Never>
 
   public var isReadyToSendWriteWithoutResponse: AnyPublisher<Void, Never>
   public var nameUpdates: AnyPublisher<String?, Never>
@@ -189,20 +190,20 @@ public struct Peripheral {
 
   private func writeValueWithResponse(_ value: Data, for characteristic: CBCharacteristic) -> AnyPublisher<Void, Error> {
     didWriteValueForCharacteristic
-     .filterFirstValueOrThrow(where: {
-       $0.uuid == characteristic.uuid
-     })
-     .map { _ in }
-     .handleEvents(receiveSubscription: { [_writeValueForCharacteristic] _ in
-       _writeValueForCharacteristic(value, characteristic, .withResponse)
-     })
-     .shareCurrentValue()
+      .filterFirstValueOrThrow(where: { [uuid = characteristic.uuid] in
+        $0.uuid == uuid
+      })
+      .map { _ in }
+      .handleEvents(receiveSubscription: { [_writeValueForCharacteristic] _ in
+        _writeValueForCharacteristic(value, characteristic, .withResponse)
+      })
+      .shareCurrentValue()
   }
 
   public func setNotifyValue(_ enabled: Bool, for characteristic: CBCharacteristic) -> AnyPublisher<Void, Error> {
     didUpdateNotificationState
-      .filterFirstValueOrThrow(where: {
-        $0.uuid == characteristic.uuid
+      .filterFirstValueOrThrow(where: { [uuid = characteristic.uuid] in
+        $0.uuid == uuid
       })
       .map { _ in }
       .handleEvents(receiveSubscription: { [_setNotifyValue] _ in
@@ -213,8 +214,8 @@ public struct Peripheral {
 
   public func discoverDescriptors(for characteristic: CBCharacteristic) -> AnyPublisher<[CBDescriptor]?, Error> {
     didDiscoverDescriptorsForCharacteristic
-      .filterFirstValueOrThrow(where: {
-        $0.uuid == characteristic.uuid
+      .filterFirstValueOrThrow(where: { [uuid = characteristic.uuid] in
+        $0.uuid == uuid
       })
       .map(\.descriptors)
       .handleEvents(receiveSubscription: { [_discoverDescriptors] _ in
@@ -225,8 +226,8 @@ public struct Peripheral {
 
   public func readValue(for descriptor: CBDescriptor) -> AnyPublisher<Any?, Error> {
     didUpdateValueForDescriptor
-      .filterFirstValueOrThrow(where: {
-        $0.uuid == descriptor.uuid
+      .filterFirstValueOrThrow(where: { [uuid = descriptor.uuid] in
+        $0.uuid == uuid
       })
       .map(\.value)
       .handleEvents(receiveSubscription: { [_readValueForDescriptor] _ in
@@ -237,8 +238,8 @@ public struct Peripheral {
 
   public func writeValue(_ value: Data, for descriptor: CBDescriptor) -> AnyPublisher<Void, Error> {
     didWriteValueForDescriptor
-      .filterFirstValueOrThrow(where: {
-        $0.uuid == descriptor.uuid
+      .filterFirstValueOrThrow(where: { [uuid = descriptor.uuid] in
+        $0.uuid == uuid
       })
       .map { _ in }
       .handleEvents(receiveSubscription: { [_writeValueForDescriptor] _ in
@@ -291,7 +292,7 @@ public struct Peripheral {
     discoverCharacteristics(withUUIDs: [characteristicUUID], inServiceWithUUID: serviceUUID)
       .tryMap { characteristics in
         // assume core bluetooth won't send us a characteristic list without the characteristic we expect
-        guard let characteristic = characteristics.first(where: { characteristic in characteristic.uuid == characteristicUUID }) else {
+        guard let characteristic = characteristics.first(where: { c in c.uuid == characteristicUUID }) else {
           throw PeripheralError.characteristicNotFound(characteristicUUID)
         }
         return characteristic
@@ -404,8 +405,8 @@ public struct Peripheral {
   public func listenForUpdates(on characteristic: CBCharacteristic) -> AnyPublisher<Data?, Error> {
     didUpdateValueForCharacteristic
     // not limiting to `.first()` here as callers may want long-lived listening for value changes
-      .filter({ (readCharacteristic, error) -> Bool in
-        return readCharacteristic.uuid == characteristic.uuid
+      .filter({ [uuid = characteristic.uuid] (readCharacteristic, error) -> Bool in
+        readCharacteristic.uuid == uuid
       })
       .selectValueOrThrowError()
       .map(\.value)
@@ -437,8 +438,8 @@ public struct Peripheral {
       self.listenForUpdates(on: characteristic),
       
       didUpdateNotificationState
-        .filterFirstValueOrThrow(where: {
-          $0.uuid == characteristic.uuid
+        .filterFirstValueOrThrow(where: { [uuid = characteristic.uuid] in
+          $0.uuid == uuid
         })
         .ignoreOutput(setOutputType: Data?.self)
     )
@@ -458,7 +459,7 @@ public struct Peripheral {
 
 extension Peripheral {
   @objc(CCBPeripheralDelegate)
-  class Delegate: NSObject {
+  final class Delegate: NSObject, Sendable {
     let nameUpdates:                             PassthroughSubject<String?, Never>                    = .init()
     let didInvalidateServices:                   PassthroughSubject<[CBService], Never>                = .init()
     let didReadRSSI:                             PassthroughSubject<Result<Double, Error>, Never>      = .init()

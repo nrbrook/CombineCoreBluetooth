@@ -1,12 +1,13 @@
 import Foundation
+@preconcurrency import CoreBluetooth
 
-public struct Central {
+public struct Central: Sendable {
   let rawValue: CBCentral?
-
+  
   public let identifier: UUID
-
-  let _maximumUpdateValueLength: () -> Int
-
+  
+  public var _maximumUpdateValueLength: @Sendable () -> Int
+  
   public var maximumUpdateValueLength: Int {
     _maximumUpdateValueLength()
   }

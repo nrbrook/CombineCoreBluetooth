@@ -1,8 +1,8 @@
-import Combine
-import CoreBluetooth
+@preconcurrency import Combine
+@preconcurrency import CoreBluetooth
 import Foundation
 
-public struct CentralManager {
+public struct CentralManager: Sendable {
 #if os(macOS) && !targetEnvironment(macCatalyst)
     public struct Feature : OptionSet, @unchecked Sendable {
       public var rawValue: UInt
@@ -15,32 +15,32 @@ public struct CentralManager {
   public typealias Feature = CBCentralManager.Feature
 #endif
   let delegate: Delegate?
+
+  public var _state: @Sendable () -> CBManagerState
+  public var _authorization: @Sendable () -> CBManagerAuthorization
+  public var _isScanning: @Sendable () -> Bool
+
+  public var _supportsFeatures: @Sendable (_ feature: Feature) -> Bool
+
+  public var _retrievePeripheralsWithIdentifiers: @Sendable ([UUID]) -> [Peripheral]
+  public var _retrieveConnectedPeripheralsWithServices: @Sendable ([CBUUID]) -> [Peripheral]
+  public var _scanForPeripheralsWithServices: @Sendable (_  serviceUUIDs: [CBUUID]?, _ options: ScanOptions?) -> Void
+  public var _stopScan: @Sendable () -> Void
+
+  public var _connectToPeripheral: @Sendable (Peripheral, _ options: PeripheralConnectionOptions?) -> Void
+  public var _cancelPeripheralConnection: @Sendable (_ peripheral: Peripheral) -> Void
+  public var _registerForConnectionEvents: @Sendable (_ options: [CBConnectionEventMatchingOption : Any]?) -> Void
   
-  let _state: () -> CBManagerState
-  let _authorization: () -> CBManagerAuthorization
-  let _isScanning: () -> Bool
+  public var didUpdateState: AnyPublisher<CBManagerState, Never>
+  public var willRestoreState: AnyPublisher<[String: Any], Never>
+  public var didConnectPeripheral: AnyPublisher<Peripheral, Never>
+  public var didFailToConnectPeripheral: AnyPublisher<(Peripheral, Error?), Never>
+  public var didDisconnectPeripheral: AnyPublisher<(Peripheral, Error?), Never>
   
-  let _supportsFeatures: (_ feature: Feature) -> Bool
+  public var connectionEventDidOccur: AnyPublisher<(CBConnectionEvent, Peripheral), Never>
+  public var didDiscoverPeripheral: AnyPublisher<PeripheralDiscovery, Never>
   
-  let _retrievePeripheralsWithIdentifiers: ([UUID]) -> [Peripheral]
-  let _retrieveConnectedPeripheralsWithServices: ([CBUUID]) -> [Peripheral]
-  let _scanForPeripheralsWithServices: (_  serviceUUIDs: [CBUUID]?, _ options: ScanOptions?) -> Void
-  let _stopScan: () -> Void
-  
-  let _connectToPeripheral: (Peripheral, _ options: PeripheralConnectionOptions?) -> Void
-  let _cancelPeripheralConnection: (_ peripheral: Peripheral) -> Void
-  let _registerForConnectionEvents: (_ options: [CBConnectionEventMatchingOption : Any]?) -> Void
-  
-  public let didUpdateState: AnyPublisher<CBManagerState, Never>
-  public let willRestoreState: AnyPublisher<[String: Any], Never>
-  public let didConnectPeripheral: AnyPublisher<Peripheral, Never>
-  public let didFailToConnectPeripheral: AnyPublisher<(Peripheral, Error?), Never>
-  public let didDisconnectPeripheral: AnyPublisher<(Peripheral, Error?), Never>
-  
-  public let connectionEventDidOccur: AnyPublisher<(CBConnectionEvent, Peripheral), Never>
-  public let didDiscoverPeripheral: AnyPublisher<PeripheralDiscovery, Never>
-  
-  public let didUpdateACNSAuthorizationForPeripheral: AnyPublisher<Peripheral, Never>
+  public var didUpdateACNSAuthorizationForPeripheral: AnyPublisher<Peripheral, Never>
   
   public var state: CBManagerState {
     _state()
@@ -86,24 +86,24 @@ public struct CentralManager {
   }
   
   public func connect(_ peripheral: Peripheral, options: PeripheralConnectionOptions? = nil) -> AnyPublisher<Peripheral, Error> {
-      Publishers.Merge(
-        didConnectPeripheral
-          .filter { $0 == peripheral }
-          .setFailureType(to: Error.self),
-        didFailToConnectPeripheral
-          .filter { p, _ in p == peripheral }
-          .tryMap { _, error in
-            throw error ?? CentralManagerError.unknownConnectionFailure
-          }
-      )
-      .prefix(1)
-      .handleEvents(receiveSubscription: { _ in
-        _connectToPeripheral(peripheral, options)
-      }, receiveCancel: {
-        _cancelPeripheralConnection(peripheral)
-      })
-      .shareCurrentValue()
-      .eraseToAnyPublisher()
+    Publishers.Merge(
+      didConnectPeripheral
+        .filter { [id = peripheral.id] p in p.id == id }
+        .setFailureType(to: Error.self),
+      didFailToConnectPeripheral
+        .filter { [id = peripheral.id] p, _ in p.id == id }
+        .tryMap { _, error in
+          throw error ?? CentralManagerError.unknownConnectionFailure
+        }
+    )
+    .prefix(1)
+    .handleEvents(receiveSubscription: { _ in
+      _connectToPeripheral(peripheral, options)
+    }, receiveCancel: {
+      _cancelPeripheralConnection(peripheral)
+    })
+    .shareCurrentValue()
+    .eraseToAnyPublisher()
   }
   
   public func cancelPeripheralConnection(_ peripheral: Peripheral) {
@@ -120,17 +120,17 @@ public struct CentralManager {
   public func monitorConnection(for peripheral: Peripheral) -> AnyPublisher<Bool, Never> {
     Publishers.Merge(
       didConnectPeripheral
-        .filter { p in p == peripheral }
+        .filter { [id = peripheral.id] p in p.id == id }
         .map { _ in true },
       didDisconnectPeripheral
-        .filter { (p, error) in p == peripheral }
+        .filter { [id = peripheral.id] p, _ in p.id == id }
         .map { _ in false }
     )
     .eraseToAnyPublisher()
   }
   
   /// Configuration options used when creating a `CentralManager`.
-  public struct CreationOptions {
+  public struct CreationOptions: Sendable {
     /// If true, display a warning dialog to the user when the `CentralManager` is instantiated if Bluetooth is powered off
     public var showPowerAlert: Bool?
     /// A unique identifier for the Central Manager that's being instantiated. This identifier is used by the system to identify a specific  CBCentralManager  instance for restoration and, therefore, must remain the same for subsequent application executions in order for the manager to be restored.
@@ -143,7 +143,7 @@ public struct CentralManager {
   }
   
   /// Options used when scanning for peripherals.
-  public struct ScanOptions {
+  public struct ScanOptions: Sendable {
     /// Whether or not the scan should filter duplicate peripheral discoveries
     public var allowDuplicates: Bool?
     /// Causes the scan to also look for peripherals soliciting any of the services contained in the list.
@@ -175,7 +175,7 @@ public struct CentralManager {
   }
   
   @objc(CCBCentralManagerDelegate)
-  class Delegate: NSObject {
+  class Delegate: NSObject, @unchecked Sendable {
     let didUpdateState: PassthroughSubject<CBManagerState, Never> = .init()
     let willRestoreState: PassthroughSubject<[String: Any], Never> = .init()
     let didConnectPeripheral: PassthroughSubject<Peripheral, Never> = .init()
@@ -185,4 +185,7 @@ public struct CentralManager {
     let didDiscoverPeripheral: PassthroughSubject<PeripheralDiscovery, Never> = .init()
     let didUpdateACNSAuthorizationForPeripheral: PassthroughSubject<Peripheral, Never> = .init()
   }
+  
+  @objc(CCBCentralManagerRestorableDelegate)
+  final class RestorableDelegate: Delegate, @unchecked Sendable {}
 }
