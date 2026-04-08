@@ -24,7 +24,7 @@ public protocol MockPeripheralManagerDelegate: AnyObject {
 
 
 /// A mock peripheral manager to make implementing mocks easier
-public class MockPeripheralManager {
+public class MockPeripheralManager: @unchecked Sendable {
     
     /// The (unimplemented) peripheral manager
     private(set) public var peripheralManager: PeripheralManager!
@@ -83,7 +83,7 @@ public class MockPeripheralManager {
     @Published public private(set) var L2CAPChannels: [CBL2CAPPSM: Bool] = [:]
     /// Pending read requests on the peripheral
     @Published public private(set) var pendingReadRequests: [ATTRequest: CheckedContinuation<CBATTError.Code, Error>] = [:]
-    public class PendingWriteRequest {
+    public class PendingWriteRequest: @unchecked Sendable {
         let identifier = UUID()
         let requests: [ATTRequest]
         var responses: [ATTRequest: CBATTError.Code] = [:]

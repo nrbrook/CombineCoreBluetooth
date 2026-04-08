@@ -14,7 +14,7 @@ protocol MockCentralDelegate: AnyObject {
     func mockCentralManagerNotAuthorized(centralManager: MockCentralManager) -> Void
 }
 
-private class MockCentralDelegateDefaultImplementation: MockCentralDelegate {
+private final class MockCentralDelegateDefaultImplementation: MockCentralDelegate, Sendable {
     func mockCentralManagerAuthorizationRequest(centralManager: MockCentralManager) async -> CBManagerAuthorization {
         return .allowedAlways
     }
@@ -24,7 +24,7 @@ private class MockCentralDelegateDefaultImplementation: MockCentralDelegate {
     static let `default` = MockCentralDelegateDefaultImplementation()
 }
 
-public class MockCentralManager {
+public class MockCentralManager: @unchecked Sendable {
     weak var delegate: MockCentralDelegate? = MockCentralDelegateDefaultImplementation.default
     
     private(set) public var centralManager: CentralManager!

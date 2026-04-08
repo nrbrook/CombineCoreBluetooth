@@ -47,7 +47,7 @@ public protocol MockPeripheralDelegate: AnyObject {
 }
 
 /// Default implementations of the delegate for convenience
-public class MockPeripheralDelegateDefaultImplementaton: MockPeripheralDelegate {
+public final class MockPeripheralDelegateDefaultImplementaton: MockPeripheralDelegate, Sendable {
     let throwing: Bool
     private init(throwing: Bool) {
         self.throwing = throwing
@@ -86,7 +86,7 @@ public class MockPeripheralDelegateDefaultImplementaton: MockPeripheralDelegate 
     }
 }
 
-public class MockPeripheral {
+public class MockPeripheral: @unchecked Sendable {
     /// A delegate for the mock. Defaults to a silent delegate which does nothing on requests
     public weak var delegate: MockPeripheralDelegate? = MockPeripheralDelegateDefaultImplementaton.silent
     

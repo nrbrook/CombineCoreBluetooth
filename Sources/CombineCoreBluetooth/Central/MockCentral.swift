@@ -7,7 +7,7 @@
 
 import Foundation
 
-public class MockCentral {
+public class MockCentral: @unchecked Sendable {
     
     private(set) public var central: Central!
     
